@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fintech Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="dashboard-shell">
+      <aside class="sidebar">
+        <div class="profile-ring">
+          <div class="profile-face">
+            <span class="hair"></span>
+            <span class="face-shade"></span>
+            <span class="eyes"></span>
+            <span class="nose"></span>
+            <span class="mouth"></span>
+          </div>
+          <img class="profile-photo-image" alt="Alex's profile photo" hidden />
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Main navigation">
+          <button class="nav-item active">
+            <span class="nav-icon home-icon"></span>
+            <span>Home</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon wallet-icon"></span>
+            <span>Wallets</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon insights-icon"></span>
+            <span>Insights</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon chats-icon"></span>
+            <span>Chats</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon settings-icon"></span>
+            <span>Settings</span>
+          </button>
+        </nav>
+
+        <div class="mini-panel">
+          <div class="mini-avatar" aria-hidden="true">
+            <span class="profile-face">
+              <span class="hair"></span>
+              <span class="face-shade"></span>
+              <span class="eyes"></span>
+              <span class="nose"></span>
+              <span class="mouth"></span>
+            </span>
+            <img class="profile-photo-image" alt="" hidden />
+          </div>
+          <div class="mini-copy">
+            <div class="mini-label">Savings</div>
+            <strong>$12.6k</strong>
+            <div class="mini-meta">this month</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div class="title-block">
+            <h1>Good morning, <span>Alex</span></h1>
+            <p>Here's an overview of your finances</p>
+          </div>
+
+          <div class="toolbar">
+            <label class="search-box" aria-label="Search">
+              <input type="text" placeholder="Search" />
+              <span class="search-icon"></span>
+            </label>
+            <button class="action-plain bell-icon" type="button" aria-label="Notifications"></button>
+            <button class="action-plain menu-icon" type="button" aria-label="Menu" aria-expanded="true"></button>
+            <button class="edit-details-button" type="button">Edit details</button>
+            <button class="profile-button" type="button" aria-label="Alex's profile">
+              <span class="profile-face" aria-hidden="true">
+                <span class="hair"></span>
+                <span class="face-shade"></span>
+                <span class="eyes"></span>
+                <span class="nose"></span>
+                <span class="mouth"></span>
+              </span>
+              <img class="profile-photo-image" alt="" hidden />
+            </button>
+          </div>
+        </header>
+        <div class="content-grid">
+          <section class="hero-card">
+            <div class="date-line">
+              <span class="date">Period · May 2026</span>
+              <label class="currency-picker">
+                <span>Currency</span>
+                <select id="dashboard-currency" aria-label="Dashboard currency"></select>
+              </label>
+            </div>
+
+            <div class="hero-content">
+              <div class="balance-box">
+                <div class="balance-label">Total balance · USD</div>
+                <div class="balance-value">$1,220.16</div>
+                <div class="balance-actions">
+                  <button class="ghost-btn small-btn" type="button">+</button>
+                  <button class="ghost-btn small-btn" type="button">-</button>
+                </div>
+              </div>
+
+              <div class="finance-visual">
+                <div class="card-visual">
+                  <div class="card-chip"></div>
+                  <div class="card-text-wrapper">
+                    <div class="small-label">Balance · USD</div>
+                    <div class="card-amount">$1,220.16</div>
+                  </div>
+                  <div class="graph-lines">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="goal-row">
+              <span>Budget · May 2026</span>
+              <strong class="budget-summary">$184.50 of $500</strong>
+            </div>
+
+            <div class="quick-actions">
+              <button class="quick-btn" type="button"><span class="q-icon plus-icon"></span> Add money</button>
+              <button class="quick-btn" type="button"><span class="q-icon transfer-icon"></span> Transfer</button>
+              <button class="quick-btn" type="button"><span class="q-icon account-icon"></span> Accounts</button>
+              <button class="quick-btn" type="button"><span class="q-icon more-icon"></span> More</button>
+            </div>
+
+            <div class="slider-dots" aria-hidden="true">
+              <span class="dot active"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </div>
+          </section>
+
+          <aside class="side-stack">
+            <div class="mini-card spending-card">
+              <div class="card-header">
+                <span>Monthly spending · USD</span>
+                <button type="button" class="more-vert" aria-label="More options"></button>
+              </div>
+              <div class="chart-box">
+                <div class="chart-line">
+                  <span class="bar one"></span>
+                  <span class="bar two"></span>
+                  <span class="bar three"></span>
+                  <span class="bar four"></span>
+                  <span class="bar five"></span>
+                  <span class="bar six"></span>
+                </div>
+                <div class="chart-scale">
+                  <span>MAR</span>
+                  <span>APR</span>
+                  <span>MAY</span>
+                  <span>JUN</span>
+                  <span>JUL</span>
+                  <span>AUG</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mini-card rates-card">
+              <div class="card-header">
+                <span>Exchange rates</span>
+                <span class="vs-usd">vs USD</span>
+              </div>
+
+              <div class="rate-list">
+                <div class="rate-row">
+                  <span class="currency">€ EUR</span>
+                  <span class="value">1.08</span>
+                  <span class="trend up">+0.12%</span>
+                </div>
+                <div class="rate-row">
+                  <span class="currency">£ TRY</span>
+                  <span class="value">44.32</span>
+                  <span class="trend up">+0.12%</span>
+                </div>
+                <div class="rate-row">
+                  <span class="currency">¥ CNY</span>
+                  <span class="value">7.09</span>
+                  <span class="trend up">+0.08%</span>
+                </div>
+              </div>
+              <div class="currency-converter" aria-label="Currency converter">
+                <div class="converter-heading">
+                  <strong>Currency converter</strong>
+                  <span aria-live="polite">Loading exchange rates…</span>
+                </div>
+                <label class="converter-amount-label" for="converter-amount">Amount</label>
+                <input id="converter-amount" type="number" min="0" step="any" value="1" />
+                <div class="converter-currencies">
+                  <label>
+                    <span>From</span>
+                    <select id="converter-from" aria-label="Convert from currency"></select>
+                  </label>
+                  <button class="converter-swap" type="button" aria-label="Swap currencies">⇄</button>
+                  <label>
+                    <span>To</span>
+                    <select id="converter-to" aria-label="Convert to currency"></select>
+                  </label>
+                </div>
+                <output class="converter-result" for="converter-amount converter-from converter-to" aria-live="polite"></output>
+              </div>
+            </div>
+
+            <div class="mini-card upgrade-card">
+              <div class="upgrade-title">Account services</div>
+              <p>Bank connections and live transfers are not available on this page.</p>
+              <button type="button">Learn more <span>»</span></button>
+            </div>
+          </aside>
+        </div>
+
+        <section class="next-steps-panel" aria-labelledby="next-steps-title">
+          <div class="next-steps-heading">
+            <div>
+              <h2 id="next-steps-title">What would you like to do?</h2>
+              <p>Choose an action. Nothing connects to a bank or moves real money.</p>
+            </div>
+          </div>
+          <div class="next-steps-actions">
+            <button type="button" class="next-step-button" data-next-action="transactions">Review transactions</button>
+            <button type="button" class="next-step-button" data-next-action="budget">Set a budget</button>
+            <button type="button" class="next-step-button" data-next-action="account">Add an account</button>
+          </div>
+        </section>
+
+        <section class="bottom-grid">
+          <div class="panel transactions-panel">
+            <div class="panel-head">
+              <h2>Recent transactions</h2>
+              <span class="section-context">May 2026 · USD</span>
+              <button class="sort-btn" type="button">Sort by</button>
+            </div>
+
+            <ul class="transactions-list">
+              <li>
+                <div class="brand brand-spotify"><span>S</span></div>
+                <div class="meta">
+                  <strong>Spotify Premium</strong>
+                  <span>Subscription</span>
+                </div>
+                <div class="amount negative">-$9.99</div>
+                <div class="time-stamp">2:56 PM</div>
+              </li>
+              <li>
+                <div class="brand brand-nike"><span>N</span></div>
+                <div class="meta">
+                  <strong>Nike</strong>
+                  <span>Shopping</span>
+                </div>
+                <div class="amount negative">-$128.00</div>
+                <div class="time-stamp">1:14 PM</div>
+              </li>
+              <li>
+                <div class="brand brand-airlines"><span>U</span></div>
+                <div class="meta">
+                  <strong>United Airlines</strong>
+                  <span>Travel</span>
+                </div>
+                <div class="amount negative">-$412.80</div>
+                <div class="time-stamp">10:32 AM</div>
+              </li>
+            </ul>
+            <p class="transactions-empty" hidden>No matching transactions. Try another search or clear the search field.</p>
+          </div>
+
+          <div class="panel trend-panel">
+            <div class="panel-head no-button">
+              <h2>Spending trends</h2>
+            </div>
+            <p class="card-description">May 2026 · USD</p>
+
+            <div class="trend-visual">
+              <div class="trend-legend">
+                <span class="legend-tag tag-1">Travel</span>
+                <span class="legend-tag tag-2">Eating out</span>
+              </div>
+              <div class="trend-chart">
+                <svg viewBox="0 0 320 130" preserveAspectRatio="none" aria-label="Spending trend line chart">
+                  <path d="M0,110 C40,90 60,80 90,85 S150,62 185,74 S250,20 320,40" />
+                  <path class="accent" d="M0,100 C40,86 70,75 110,80 S160,90 200,66 S260,58 320,32" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="script.js" defer></script>
+  </body>
+</html>
