@@ -5,18 +5,30 @@ const searchInput = document.querySelector(".search-box input");
 const menuButton = document.querySelector(".menu-icon");
 const sidebar = document.querySelector(".sidebar");
 const dashboardShell = document.querySelector(".dashboard-shell");
-const dataNotice = document.querySelector(".data-notice");
+let dataNotice = document.querySelector(".data-notice");
 
-let balance = Number(balanceValue.textContent.replace(/[$,]/g, ""));
+// Keep every stored amount at two decimals (avoids values like 807.3600000000001).
+const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
+const scrollBehavior = () => (
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+);
+
+let balance = 0; // set from dashboardDetails below
 let sortMode = "default";
 let balancesHidden = false;
 let budgetLimit = 500;
 let savedAccounts = [];
+const today = new Date();
+const monthShort = new Intl.DateTimeFormat("en-US", { month: "short" });
+const recentMonthLabels = Array.from({ length: 6 }, (_, i) => (
+  monthShort.format(new Date(today.getFullYear(), today.getMonth() - 5 + i, 1)).toUpperCase()
+));
 const defaultDashboardDetails = {
+  version: 1,
   greeting: "Good morning",
   name: "Alex",
   subtitle: "Here's an overview of your finances",
-  period: "May 2026",
+  period: new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(today),
   currency: "USD",
   manualRates: false,
   balance: 1220.16,
@@ -24,16 +36,9 @@ const defaultDashboardDetails = {
   savingsPeriod: "this month",
   budgetSpent: 184.5,
   budgetLimit: 500,
-  spendingMonths: [
-    { label: "MAR", amount: 300 },
-    { label: "APR", amount: 480 },
-    { label: "MAY", amount: 660 },
-    { label: "JUN", amount: 580 },
-    { label: "JUL", amount: 800 },
-    { label: "AUG", amount: 1000 },
-  ],
+  spendingMonths: [300, 480, 660, 580, 800, 1000].map((amount, i) => ({ label: recentMonthLabels[i], amount })),
   rates: [
-    { currency: "EUR", value: 1.08, change: 0.12 },
+    { currency: "EUR", value: 0.926, change: 0.12 }, // units per USD (fallback only; live feed overrides)
     { currency: "TRY", value: 44.32, change: 0.12 },
     { currency: "CNY", value: 7.09, change: 0.08 },
   ],
@@ -107,21 +112,36 @@ const currencyCountries = {
   YER: ["Yemen"], ZAR: ["Eswatini", "Lesotho", "Namibia", "South Africa", "Zimbabwe"],
   ZMW: ["Zambia"], ZWG: ["Zimbabwe"], ZWL: ["Zimbabwe"],
 };
-let dashboardDetails = defaultDashboardDetails;
+let dashboardDetails = structuredClone(defaultDashboardDetails);
 let liveRates = {};
 let rateStatus = "Loading exchange rates…";
 
 function getSupportedCurrencies() {
   const currencies = new Set(["USD"]);
-  if (typeof Intl.supportedValuesOf === "function") {
+  const liveCodes = Object.keys(liveRates);
+  if (liveCodes.length) {
+    // Once live rates load, only offer currencies that can actually be converted.
+    liveCodes.forEach((currency) => currencies.add(currency));
+  } else if (typeof Intl.supportedValuesOf === "function") {
     Intl.supportedValuesOf("currency").forEach((currency) => currencies.add(currency));
   }
-  Object.keys(liveRates).forEach((currency) => currencies.add(currency));
   dashboardDetails.rates.forEach((rate) => currencies.add(rate.currency));
+  currencies.add(dashboardDetails.currency);
   return ["USD", ...[...currencies].filter((currency) => currency !== "USD").sort()];
 }
 
 function showStorageMessage(message) {
+  if (!dataNotice) {
+    // index.html has no notice element, so create one on demand (styled by .data-notice).
+    dataNotice = document.createElement("section");
+    dataNotice.className = "data-notice";
+    const badge = document.createElement("strong");
+    badge.textContent = "Storage";
+    dataNotice.append(badge);
+    const topbar = document.querySelector(".topbar");
+    if (topbar) topbar.after(dataNotice);
+    else document.body.prepend(dataNotice);
+  }
   let status = dataNotice.querySelector(".storage-status");
   if (!status) {
     status = document.createElement("p");
@@ -157,7 +177,7 @@ function saveLocalValue(key, value) {
   }
 }
 
-budgetLimit = readLocalValue("fintech-dashboard-budget", budgetLimit, (value) => (
+const legacyBudgetLimit = readLocalValue("fintech-dashboard-budget", null, (value) => (
   Number.isFinite(value) && value > 0
 ));
 savedAccounts = readLocalValue("fintech-dashboard-accounts", [], (value) => (
@@ -165,10 +185,11 @@ savedAccounts = readLocalValue("fintech-dashboard-accounts", [], (value) => (
     account && typeof account.name === "string" && Number.isFinite(account.balance)
   ))
 ));
-dashboardDetails = readLocalValue(
+const loadedDetails = readLocalValue(
   "fintech-dashboard-details",
-  defaultDashboardDetails,
+  null,
   (value) => value && typeof value === "object"
+    && (value.version === undefined || Number.isInteger(value.version))
     && typeof value.greeting === "string"
     && typeof value.name === "string"
     && typeof value.subtitle === "string"
@@ -195,7 +216,13 @@ dashboardDetails = readLocalValue(
     && value.trendSeries.length === 2
     && value.trendSeries.every((series) => Array.isArray(series) && series.length === 6 && series.every(Number.isFinite))
 );
-balance = dashboardDetails.balance;
+if (loadedDetails) {
+  dashboardDetails = loadedDetails;
+} else if (legacyBudgetLimit !== null) {
+  // Older versions saved the budget under its own key; keep it on upgrade.
+  dashboardDetails.budgetLimit = legacyBudgetLimit;
+}
+balance = round2(dashboardDetails.balance);
 budgetLimit = dashboardDetails.budgetLimit;
 
 const dialog = document.createElement("dialog");
@@ -213,6 +240,37 @@ document.body.append(dialog);
 const dialogTitle = dialog.querySelector("#dialog-title");
 const dialogContent = dialog.querySelector(".dialog-content");
 const profilePhotoKey = "fintech-dashboard-profile-photo";
+
+// Downscale to a small JPEG so the photo fits comfortably in localStorage.
+function resizeImageToDataUrl(file, maxSize = 256) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.addEventListener("load", () => {
+      try {
+        if (!image.naturalWidth || !image.naturalHeight) throw new Error("Image has no size.");
+        const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#fff"; // JPEG has no transparency
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    });
+    image.addEventListener("error", () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Image could not be decoded."));
+    });
+    image.src = objectUrl;
+  });
+}
 
 function updateProfilePhotos(photoData) {
   document.querySelectorAll(".profile-photo-image").forEach((image) => {
@@ -256,8 +314,10 @@ function populateCurrencySelect(select, selectedCurrency) {
     option.value = currency;
     const name = currencyNames ? currencyNames.of(currency) : null;
     const countries = currencyCountries[currency] || [];
-    const countryLabel = countries.length ? countries.join(", ") : "Country/region not listed";
+    const extra = countries.length > 2 ? ` +${countries.length - 2} more` : "";
+    const countryLabel = countries.length ? `${countries.slice(0, 2).join(", ")}${extra}` : "Country/region not listed";
     option.textContent = `${currency}${name && name !== currency ? ` — ${name}` : ""} · ${countryLabel}`;
+    option.title = countries.length ? countries.join(", ") : "Country/region not listed";
     select.append(option);
   });
   select.value = currencies.includes(selectedCurrency) ? selectedCurrency : "USD";
@@ -294,7 +354,9 @@ function formatCurrency(value, currency = dashboardDetails.currency) {
 
 async function loadExchangeRates() {
   try {
-    const response = await fetch("https://open.er-api.com/v6/latest/USD");
+    const response = await fetch("https://open.er-api.com/v6/latest/USD", {
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(8000) : undefined,
+    });
     if (!response.ok) throw new Error(`Exchange-rate service returned ${response.status}.`);
     const data = await response.json();
     if (data.result !== "success" || !data.rates || typeof data.rates !== "object") {
@@ -333,6 +395,13 @@ function persistDashboardDetails() {
   saveLocalValue("fintech-dashboard-budget", dashboardDetails.budgetLimit);
 }
 
+function brandClassFor(name) {
+  const key = name.toLowerCase();
+  if (key.includes("spotify")) return "brand-spotify";
+  if (key.includes("nike")) return "brand-nike";
+  return "brand-airlines";
+}
+
 function renderTransactions() {
   transactionList.replaceChildren();
   dashboardDetails.transactions.forEach((transaction, index) => {
@@ -341,7 +410,7 @@ function renderTransactions() {
     item.dataset.created = String(dashboardDetails.transactions.length - index);
 
     const brand = document.createElement("div");
-    brand.className = "brand brand-airlines";
+    brand.className = `brand ${brandClassFor(transaction.name)}`;
     brand.textContent = transaction.name.trim().charAt(0).toUpperCase() || "?";
 
     const meta = document.createElement("div");
@@ -382,6 +451,9 @@ function renderDashboardDetails() {
   title.firstChild.textContent = `${dashboardDetails.greeting}, `;
   title.querySelector("span").textContent = dashboardDetails.name;
   document.querySelector(".profile-button").setAttribute("aria-label", `${dashboardDetails.name}'s profile`);
+  document.querySelectorAll(".sidebar .profile-ring > .profile-photo-image").forEach((image) => {
+    image.alt = `${dashboardDetails.name}'s profile photo`;
+  });
   document.querySelector(".title-block p").textContent = dashboardDetails.subtitle;
 
   document.querySelector(".date").textContent = `Period · ${dashboardDetails.period}`;
@@ -402,6 +474,7 @@ function renderDashboardDetails() {
   dashboardDetails.spendingMonths.forEach((month, index) => {
     bars[index].style.height = `${Math.max(4, (month.amount / maxSpending) * 100)}%`;
     bars[index].title = `${month.label}: ${formatDashboardCurrency(month.amount)}`;
+    bars[index].setAttribute("role", "img");
     bars[index].setAttribute("aria-label", `${month.label}: ${formatDashboardCurrency(month.amount)}`);
   });
   document.querySelectorAll(".chart-scale span").forEach((label, index) => {
@@ -444,7 +517,7 @@ function renderDashboardDetails() {
   const converterTo = document.querySelector("#converter-to");
   if (converterFrom && converterTo) {
     populateCurrencySelect(converterFrom, converterFrom.value || "USD");
-    populateCurrencySelect(converterTo, converterTo.value || dashboardDetails.currency);
+    populateCurrencySelect(converterTo, converterTo.value || (dashboardDetails.currency === "USD" ? "EUR" : dashboardDetails.currency));
     updateCurrencyConverter();
   }
 
@@ -476,6 +549,12 @@ function updateBudgetSummary() {
 
 renderDashboardDetails();
 updateBudgetSummary();
+
+// Accessible names for controls that only have an icon or an ambiguous label.
+searchInput.setAttribute("aria-label", "Search transactions");
+searchInput.placeholder = "Search transactions";
+const trendSvg = document.querySelector(".trend-chart svg");
+if (trendSvg) trendSvg.setAttribute("role", "img");
 
 getDashboardCurrencySelect().addEventListener("change", (event) => {
   dashboardDetails.currency = event.currentTarget.value;
@@ -513,6 +592,8 @@ function showWelcomeDialog() {
   );
   content.append(intro, privacy, actions);
   openDialog("Welcome to your finance dashboard", content);
+  // Closing with X or Esc counts as "seen" too, so the welcome doesn't return on every load.
+  dialog.addEventListener("close", () => saveLocalValue("fintech-dashboard-welcome-complete", true), { once: true });
 }
 
 function showConnectInfo() {
@@ -743,7 +824,7 @@ function showEditDetailsDialog() {
       subtitle: readText("subtitle"),
       period: readText("period"),
       currency: readText("currency").toUpperCase(),
-      manualRates: true,
+      manualRates: false, // decided below, once the rate fields are compared
       balance: readNumber("balance"),
       savings: readNumber("savings"),
       savingsPeriod: readText("savingsPeriod"),
@@ -774,6 +855,12 @@ function showEditDetailsDialog() {
         series.map((value, pointIndex) => readNumber(`trend${index}Point${pointIndex}`))
       )),
     };
+
+    // Only freeze the live feed when the user actually changed a tracked rate.
+    updated.manualRates = Boolean(dashboardDetails.manualRates) || dashboardDetails.rates.some((rate, index) => (
+      rate.currency !== updated.rates[index].currency || rate.value !== updated.rates[index].value
+    ));
+    updated.version = 1;
 
     try {
       new Intl.NumberFormat("en-US", { style: "currency", currency: updated.currency });
@@ -823,8 +910,10 @@ function showAccountsDialog() {
       actions.className = "account-actions";
       const edit = makeButton("Edit", "edit-account");
       edit.dataset.accountIndex = String(index);
+      edit.setAttribute("aria-label", `Edit ${account.name}`);
       const remove = makeButton("Remove", "remove-account");
       remove.dataset.accountIndex = String(index);
+      remove.setAttribute("aria-label", `Remove ${account.name}`);
       actions.append(edit, remove);
       item.append(name, amount, actions);
       list.append(item);
@@ -950,7 +1039,7 @@ function makeAmountDialog(action) {
       return;
     }
 
-    balance += action === "add" ? amount : -amount;
+    balance = round2(balance + (action === "add" ? amount : -amount));
     updateBalance();
     addTransaction(action === "add" ? "Money added" : "Transfer", amount, action);
     dialog.close();
@@ -1078,7 +1167,7 @@ document.querySelectorAll(".nav-item").forEach((button) => {
         : section === "Wallets"
           ? document.querySelector(".hero-card")
           : document.querySelector(".spending-card");
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
     }
   });
 });
@@ -1140,16 +1229,11 @@ document.querySelector(".profile-button").addEventListener("click", () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      if (typeof reader.result !== "string") {
-        uploadStatus.textContent = "The selected photo could not be read.";
-        return;
-      }
+    resizeImageToDataUrl(file).then((dataUrl) => {
       try {
-        localStorage.setItem(profilePhotoKey, reader.result);
-        updateProfilePhotos(reader.result);
-        photo.src = reader.result;
+        localStorage.setItem(profilePhotoKey, dataUrl);
+        updateProfilePhotos(dataUrl);
+        photo.src = dataUrl;
         photo.hidden = false;
         avatar.classList.add("has-profile-photo");
         uploadStatus.textContent = "Profile photo updated.";
@@ -1157,16 +1241,17 @@ document.querySelector(".profile-button").addEventListener("click", () => {
         console.error("Could not save the selected profile photo.", error);
         uploadStatus.textContent = "The photo could not be saved in this browser.";
       }
-    });
-    reader.addEventListener("error", () => {
+    }).catch((error) => {
+      console.error("Could not read the selected photo.", error);
       uploadStatus.textContent = "The selected photo could not be read.";
     });
-    reader.readAsDataURL(file);
   });
   profile.append(avatar, name, accountType, uploadLabel, uploadInput, uploadStatus);
   openDialog("Profile", profile);
 });
 
+sidebar.id = sidebar.id || "sidebar";
+menuButton.setAttribute("aria-controls", sidebar.id);
 menuButton.addEventListener("click", () => {
   const isExpanded = menuButton.getAttribute("aria-expanded") === "true";
   sidebar.hidden = isExpanded;
@@ -1175,8 +1260,10 @@ menuButton.addEventListener("click", () => {
 });
 
 const balanceButtons = document.querySelectorAll(".balance-actions button");
+balanceButtons[0].setAttribute("aria-label", "Add 10 USD to balance");
+balanceButtons[1].setAttribute("aria-label", "Subtract 10 USD from balance");
 balanceButtons[0].addEventListener("click", () => {
-  balance += 10;
+  balance = round2(balance + 10);
   updateBalance();
   persistDashboardDetails();
 });
@@ -1185,7 +1272,7 @@ balanceButtons[1].addEventListener("click", () => {
     openDialog("Balance", "The account balance cannot be reduced below zero.");
     return;
   }
-  balance -= 10;
+  balance = round2(balance - 10);
   updateBalance();
   persistDashboardDetails();
 });
@@ -1200,8 +1287,8 @@ document.querySelector(".edit-details-button").addEventListener("click", showEdi
 document.querySelector(".more-vert").addEventListener("click", () => {
   const container = document.createElement("div");
   const description = document.createElement("p");
-  description.textContent = "Download a summary of monthly spending.";
-  const exportButton = makeButton("Download spending CSV", "export-spending");
+  description.textContent = "Download your transactions (amounts in USD) as a CSV file.";
+  const exportButton = makeButton("Download transactions CSV", "export-spending");
   container.append(description, exportButton);
   openDialog("Spending options", container);
 });
@@ -1217,7 +1304,7 @@ document.querySelector(".upgrade-card button").addEventListener("click", () => {
 document.querySelectorAll(".next-step-button").forEach((button) => {
   button.addEventListener("click", () => {
     if (button.dataset.nextAction === "transactions") {
-      document.querySelector(".transactions-panel").scrollIntoView({ behavior: "smooth", block: "center" });
+      document.querySelector(".transactions-panel").scrollIntoView({ behavior: scrollBehavior(), block: "center" });
     } else if (button.dataset.nextAction === "budget") {
       showBudgetDialog();
     } else if (button.dataset.nextAction === "account") {
@@ -1244,8 +1331,15 @@ document.querySelector(".sort-btn").addEventListener("click", (event) => {
 searchInput.addEventListener("input", applySearch);
 
 dialog.querySelector(".dialog-close").addEventListener("click", () => dialog.close());
+// Close only when the press AND the click both land on the backdrop. This stops a
+// text-selection drag that ends outside an input from closing the dialog.
+let pressStartedOnBackdrop = false;
+dialog.addEventListener("pointerdown", (event) => {
+  pressStartedOnBackdrop = event.target === dialog;
+});
 dialog.addEventListener("click", (event) => {
-  if (event.target === dialog) dialog.close();
+  if (event.target === dialog && pressStartedOnBackdrop) dialog.close();
+  pressStartedOnBackdrop = false;
 });
 dialog.addEventListener("click", (event) => {
   const button = event.target.closest("[data-dialog-action]");
@@ -1259,10 +1353,10 @@ dialog.addEventListener("click", (event) => {
     dialog.close();
   } else if (button.dataset.dialogAction === "transactions") {
     dialog.close();
-    document.querySelector(".transactions-panel").scrollIntoView({ behavior: "smooth", block: "center" });
+    document.querySelector(".transactions-panel").scrollIntoView({ behavior: scrollBehavior(), block: "center" });
   } else if (button.dataset.dialogAction === "trends") {
     dialog.close();
-    document.querySelector(".trend-panel").scrollIntoView({ behavior: "smooth", block: "center" });
+    document.querySelector(".trend-panel").scrollIntoView({ behavior: scrollBehavior(), block: "center" });
   } else if (button.dataset.dialogAction === "accounts") {
     dialog.close();
     showAccountsDialog();
@@ -1294,12 +1388,18 @@ dialog.addEventListener("click", (event) => {
     save.type = "submit";
     save.className = "dialog-action";
     save.textContent = "Save account";
-    content.append(nameLabel, nameInput, balanceLabel, balanceInput, save);
+    const editError = document.createElement("p");
+    editError.className = "dialog-error";
+    editError.setAttribute("aria-live", "polite");
+    content.append(nameLabel, nameInput, balanceLabel, balanceInput, editError, save);
     content.addEventListener("submit", (submitEvent) => {
       submitEvent.preventDefault();
       const updatedName = nameInput.value.trim();
-      const updatedBalance = Number(balanceInput.value);
-      if (!updatedName || !Number.isFinite(updatedBalance) || updatedBalance < 0) return;
+      const updatedBalance = round2(Number(balanceInput.value));
+      if (!updatedName || !Number.isFinite(updatedBalance) || updatedBalance < 0) {
+        editError.textContent = "Enter an account name and a valid non-negative balance.";
+        return;
+      }
       savedAccounts[index] = { name: updatedName, balance: updatedBalance };
       saveLocalValue("fintech-dashboard-accounts", savedAccounts);
       showAccountsDialog();
@@ -1314,7 +1414,7 @@ dialog.addEventListener("click", (event) => {
     }
   } else if (button.dataset.dialogAction === "export-spending") {
     const csvRows = [
-      ["Merchant", "Category", "Amount", "Time"],
+      ["Merchant", "Category", "Amount (USD)", "Time"],
       ...dashboardDetails.transactions.map((transaction) => [
         transaction.name,
         transaction.category,
@@ -1322,15 +1422,22 @@ dialog.addEventListener("click", (event) => {
         transaction.time,
       ]),
     ];
-    const csv = csvRows.map((row) => row.map((field) => (
-      `"${String(field).replace(/"/g, '""')}"`
-    )).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    // Quote every cell and neutralise spreadsheet formulas (= + - @) in text fields.
+    const csvCell = (field) => {
+      const text = String(field);
+      const guarded = typeof field === "string" && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+      return `"${guarded.replace(/"/g, '""')}"`;
+    };
+    const csv = csvRows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+    // The BOM keeps non-ASCII merchant names readable when opened in Excel.
+    const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "monthly-spending.csv";
+    link.download = "transactions.csv";
+    document.body.append(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     dialog.close();
   } else if (button.dataset.dialogAction === "connect-account") {
     showConnectInfo();
@@ -1340,12 +1447,6 @@ dialog.addEventListener("click", (event) => {
     saveLocalValue("fintech-dashboard-welcome-complete", true);
     dialog.close();
   }
-});
-
-transactionList.querySelectorAll("li").forEach((item, index) => {
-  const amount = Number(item.querySelector(".amount").textContent.replace(/[$,]/g, ""));
-  item.dataset.amount = String(Math.abs(amount));
-  item.dataset.created = String(transactionList.children.length - index);
 });
 
 if (!readLocalValue("fintech-dashboard-welcome-complete", false, (value) => (
