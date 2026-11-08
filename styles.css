@@ -6,7 +6,7 @@
   --section: #edf3ff;
   --white: #ffffff;
   --text: #1c2a39;
-  --muted: #7684a3;
+  --muted: #566587;
   --muted-soft: #becbdd;
   --card-blue: rgba(48, 104, 245, 0.14);
   --line: rgba(167, 179, 196, 0.42);
@@ -48,7 +48,9 @@ button {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+.search-box:focus-within {
   outline: 3px solid rgba(13, 79, 216, 0.45);
   outline-offset: 3px;
 }
@@ -66,6 +68,11 @@ input:focus-visible {
 
 .dashboard-shell.menu-collapsed {
   grid-template-columns: 1fr;
+}
+
+/* display:flex on .sidebar would otherwise override the [hidden] attribute */
+.sidebar[hidden] {
+  display: none;
 }
 
 .sidebar {
@@ -987,7 +994,7 @@ input:focus-visible {
 .card-description {
   margin: -5px 0 6px;
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   line-height: 1.45;
 }
 
@@ -1019,7 +1026,7 @@ input:focus-visible {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 0.54rem;
+  font-size: 0.7rem;
   color: var(--muted);
   letter-spacing: 0.08em;
 }
@@ -1064,7 +1071,7 @@ input:focus-visible {
 .converter-currencies label span,
 .converter-amount-label {
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.72rem;
 }
 
 .currency-converter input,
@@ -1250,7 +1257,7 @@ input:focus-visible {
 .section-context {
   margin-left: auto;
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   text-align: right;
 }
 
@@ -1402,7 +1409,7 @@ input:focus-visible {
 .action-dialog {
   width: min(500px, calc(100% - 32px));
   max-height: min(80vh, 640px);
-  padding: 22px;
+  padding: 0; /* padding lives on the header/content so clicks on it are not backdrop clicks */
   border: 1px solid rgba(160, 175, 201, 0.5);
   border-radius: 22px;
   color: var(--text);
@@ -1568,6 +1575,7 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 22px 22px 0;
   margin-bottom: 12px;
 }
 
@@ -1584,6 +1592,10 @@ input:focus-visible {
   background: rgba(120, 142, 176, 0.12);
   color: var(--text);
   font-size: 1.4rem;
+}
+
+.dialog-content {
+  padding: 0 22px 22px;
 }
 
 .dialog-content p {
